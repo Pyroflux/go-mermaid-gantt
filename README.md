@@ -1,4 +1,4 @@
-# go-ganttmermaid
+# go-mermaid-gantt
 
 纯 Go 的 Mermaid 风格甘特图渲染器 / A pure-Go Mermaid-style Gantt renderer  
 解析 Mermaid Gantt 语法直接输出 PNG，无 Node/mermaid-cli 依赖，支持多主题、中文字体、时间与周末定制。
