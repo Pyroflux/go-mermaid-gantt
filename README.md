@@ -78,5 +78,5 @@ cd x/gantt
 GOCACHE=$(pwd)/.gocache go test ./...
 ```
 
-## License / 许可证
-遵循仓库根目录 LICENSE / Follow repo root LICENSE
+## License
+The MIT License (MIT). Please see [License File](LICENSE) for more information.
