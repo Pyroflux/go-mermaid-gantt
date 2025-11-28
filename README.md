@@ -74,8 +74,7 @@ func main() {
 
 ## Testing / 测试
 ```bash
-cd x/gantt
-GOCACHE=$(pwd)/.gocache go test ./...
+go test ./...
 ```
 
 ## License
