@@ -13,7 +13,7 @@
 
 ## Install / 安装
 ```bash
-go get github.com/go-fries/fries/x/gantt/v3
+go get github.com/Pyroflux/go-mermaid-gantt
 ```
 
 ## Quick Start / 快速开始
@@ -22,7 +22,7 @@ package main
 
 import (
     "context"
-    gantt "github.com/go-fries/fries/x/gantt/v3"
+    gantt "github.com/Pyroflux/go-mermaid-gantt"
 )
 
 func main() {
