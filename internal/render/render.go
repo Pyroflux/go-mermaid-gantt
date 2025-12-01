@@ -15,8 +15,8 @@ import (
 	xfont "golang.org/x/image/font"
 	"golang.org/x/image/math/fixed"
 
-	"github.com/Pyroflux/go-mermaid-gantt/internal/font"
-	"github.com/Pyroflux/go-mermaid-gantt/internal/parser"
+	"github.com/pyroflux/go-mermaid-gantt/internal/font"
+	"github.com/pyroflux/go-mermaid-gantt/internal/parser"
 )
 
 const (
@@ -379,7 +379,7 @@ func RenderModel(_ context.Context, m parser.Model, opt Options) ([]byte, error)
 	}
 
 	if timeMode {
-		drawTimelineMinutes(img, leftMargin, topMargin, gridWidth, axisHeight, minSpan, maxSpan, m.AxisFormat, opt.Theme, calendar, timelineEnd, tickMinutes, weekendFill)
+		drawTimelineMinutes(img, leftMargin, topMargin, gridWidth, axisHeight, minSpan, maxSpan, m.AxisFormat, opt.Theme, calendar, timelineEnd, tickMinutes, weekendFill, opt.FontPath)
 	} else {
 		totalDays := calendarSpanDays(minStart, maxEnd)
 		if totalDays <= 0 {
@@ -394,7 +394,7 @@ func RenderModel(_ context.Context, m parser.Model, opt Options) ([]byte, error)
 		} else {
 			weekStart = nil
 		}
-		drawTimeline(img, leftMargin, topMargin, totalDays, axisHeight, dayWidth, minStart, m.AxisFormat, opt.Theme, calendar, timelineEnd, hasToday, todayX, tickDays, weekStart, weekendFill)
+		drawTimeline(img, leftMargin, topMargin, totalDays, axisHeight, dayWidth, minStart, m.AxisFormat, opt.Theme, calendar, timelineEnd, hasToday, todayX, tickDays, weekStart, weekendFill, opt.FontPath)
 	}
 
 	// 垂直标记（不占用行）
@@ -796,7 +796,7 @@ func abs(v int) int {
 	return v
 }
 
-func drawTimelineMinutes(img *image.RGBA, xStart, yStart, width, axisHeight int, minStart, maxEnd time.Time, axisFormat string, theme ThemeColors, calendar parser.Calendar, endY int, forcedTickMinutes int, weekendFill color.Color) {
+func drawTimelineMinutes(img *image.RGBA, xStart, yStart, width, axisHeight int, minStart, maxEnd time.Time, axisFormat string, theme ThemeColors, calendar parser.Calendar, endY int, forcedTickMinutes int, weekendFill color.Color, fontPath string) {
 	totalMinutes := int(maxEnd.Sub(minStart).Minutes()) + 1
 	if totalMinutes <= 0 {
 		totalMinutes = 1
@@ -841,7 +841,7 @@ func drawTimelineMinutes(img *image.RGBA, xStart, yStart, width, axisHeight int,
 	if strings.TrimSpace(format) == "" {
 		format = "15:04"
 	}
-	face, _, _ := font.LoadFaceWithFallback(float64(axisFontSize), "")
+	face, _, _ := font.LoadFaceWithFallback(float64(axisFontSize), fontPath)
 	step := labelStep
 	for i := labelOffset; i <= totalMinutes; i += step {
 		x := xStart + int(float64(i)*pixelsPerMinute)
@@ -884,7 +884,7 @@ func drawVerticalMarkers(img *image.RGBA, xStart, yStart, endY int, spanStart, s
 	}
 }
 
-func drawTimeline(img *image.RGBA, xStart, yStart, days, axisHeight, dayWidth int, minStart time.Time, axisFormat string, theme ThemeColors, calendar parser.Calendar, endY int, hasToday bool, todayX int, forcedTickDays int, weekStart *time.Weekday, weekendFill color.Color) {
+func drawTimeline(img *image.RGBA, xStart, yStart, days, axisHeight, dayWidth int, minStart time.Time, axisFormat string, theme ThemeColors, calendar parser.Calendar, endY int, hasToday bool, todayX int, forcedTickDays int, weekStart *time.Weekday, weekendFill color.Color, fontPath string) {
 	width := dayWidth * days
 	lineY := yStart + axisHeight/halfDivisor
 
@@ -933,7 +933,7 @@ func drawTimeline(img *image.RGBA, xStart, yStart, days, axisHeight, dayWidth in
 	}
 
 	// 刻度文本
-	face, _, _ := font.LoadFaceWithFallback(float64(axisFontSize), "")
+	face, _, _ := font.LoadFaceWithFallback(float64(axisFontSize), fontPath)
 	format := axisFormat
 	if strings.TrimSpace(format) == "" {
 		format = "01-02"

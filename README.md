@@ -9,11 +9,11 @@
 - Calendar control: `excludes`/`includes`、自定义 `weekend`、`timezone` 时区 / 日历与时区控制。
 - Tasks: 状态 `crit|done|active|milestone|vert`，依赖 `after|before|until`，进度百分比，持续时间单位 ms/min/hour/day/week/month，支持 HH:mm 时间 / 丰富任务语法。
 - Layout: 自适应画布，刻度贯穿全图，今日线按百分比定位，支持无 section 场景 / Auto-sized canvas, full-width grid, today line.
-- Themes & Fonts: `DefaultTheme`/`DarkTheme`/`MergeTheme`，`FontPath` 或 `GGM_FONT_PATH` 友好支持中文字体。
+- Themes & Fonts: `DefaultTheme`/`DarkTheme`/`MergeTheme`，`FontPath` > `GGM_FONT_PATH` > 自动发现，显式失效即报错，自动发现会提示来源。
 
 ## Install / 安装
 ```bash
-go get github.com/Pyroflux/go-mermaid-gantt
+go get github.com/pyroflux/go-mermaid-gantt
 ```
 
 ## Quick Start / 快速开始
@@ -22,7 +22,7 @@ package main
 
 import (
     "context"
-    gantt "github.com/Pyroflux/go-mermaid-gantt"
+    gantt "github.com/pyroflux/go-mermaid-gantt"
 )
 
 func main() {
@@ -66,7 +66,7 @@ func main() {
 
 ## Themes & Fonts / 主题与字体
 - 内置：`DefaultTheme()`、`DarkTheme()`；使用 `MergeTheme(base, override)` 覆盖非空字段（hex 色值）。
-- 字体：`FontPath` 或环境变量 `GGM_FONT_PATH`；若未指定，尝试常见系统中文字体，失败回退内置字体（不 panic）。
+- 字体：优先 `FontPath`，否则 `GGM_FONT_PATH`，否则尝试常见路径（成功会提示使用的字体）；显式/环境路径不可用时返回错误，不再静默回退。
 
 ## Examples / 示例
 - Basic 示例：`cd x/gantt && go run ./examples/basic`（输出到临时目录）

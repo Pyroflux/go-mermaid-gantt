@@ -3,7 +3,7 @@ package render
 import (
 	"time"
 
-	"github.com/Pyroflux/go-mermaid-gantt/internal/parser"
+	"github.com/pyroflux/go-mermaid-gantt/internal/parser"
 )
 
 const (

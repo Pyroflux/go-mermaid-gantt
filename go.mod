@@ -1,4 +1,4 @@
-module github.com/Pyroflux/go-mermaid-gantt
+module github.com/pyroflux/go-mermaid-gantt
 
 go 1.24.0
 

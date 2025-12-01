@@ -2,15 +2,20 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
-	ganttmermaid "github.com/Pyroflux/go-mermaid-gantt"
+	ganttmermaid "github.com/pyroflux/go-mermaid-gantt"
 )
 
 func main() {
-	out := filepath.Join(os.TempDir(), "gantt_basic.png")
+	fontPath := flag.String("font", "", "path to a font file (supports Chinese)")
+	outPath := flag.String("output", filepath.Join(os.TempDir(), "gantt_basic.png"), "output png path")
+	flag.Parse()
+
 	input := ganttmermaid.Input{
 		Source: `gantt
   title 示例项目路线图
@@ -25,11 +30,11 @@ func main() {
 
   section 发布
   发布里程碑 :milestone, m1, after a2, 0d`,
-		OutputPath:         out,
+		OutputPath:         *outPath,
 		Theme:              ganttmermaid.DefaultTheme(),
 		Timezone:           "UTC",
 		DisableTodayMarker: true, // 可选：禁用今日标记便于回归可复现
-		// FontPath: "/path/to/chinese.ttf", // 如需中文字体可指定
+		FontPath:           strings.TrimSpace(*fontPath),
 	}
 
 	res, err := ganttmermaid.Render(context.Background(), input)
@@ -37,4 +42,7 @@ func main() {
 		panic(err)
 	}
 	fmt.Println("渲染完成:", res.OutputPath)
+	for _, w := range res.Warnings {
+		fmt.Println("警告:", w)
+	}
 }

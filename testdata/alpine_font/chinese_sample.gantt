@@ -1,0 +1,11 @@
+gantt
+title 中文渲染验证
+dateFormat YYYY-MM-DD
+axisFormat %m-%d
+excludes weekends
+section 开发
+需求评审 :a1, 2025-01-06, 2d
+功能开发 :crit, after a1, 4d
+联调验证 :after a1, 2d
+section 发布
+发布里程碑 :milestone, m1, after a1, 0d

@@ -5,10 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
-	"github.com/Pyroflux/go-mermaid-gantt/internal/parser"
-	"github.com/Pyroflux/go-mermaid-gantt/internal/render"
+	"github.com/pyroflux/go-mermaid-gantt/internal/font"
+	"github.com/pyroflux/go-mermaid-gantt/internal/parser"
+	"github.com/pyroflux/go-mermaid-gantt/internal/render"
 )
 
 const defaultFilePerm = 0o644
@@ -73,12 +75,29 @@ func (rendererImpl) Render(ctx context.Context, in Input) (RenderResult, error) 
 		theme.TodayLine,
 	)
 
+	fontPath, fontErr := font.SelectFontPath(in.FontPath)
+	if fontErr != nil {
+		source := "FontPath"
+		if strings.TrimSpace(in.FontPath) == "" {
+			source = "GGM_FONT_PATH/auto"
+		}
+		return RenderResult{}, fmt.Errorf("font selection (%s): %w", source, fontErr)
+	}
+	warnings := make([]string, 0, 1)
+	if strings.TrimSpace(in.FontPath) == "" {
+		if env := strings.TrimSpace(os.Getenv("GGM_FONT_PATH")); env != "" {
+			warnings = append(warnings, fmt.Sprintf("using font from GGM_FONT_PATH: %s", env))
+		} else {
+			warnings = append(warnings, fmt.Sprintf("using auto-discovered font: %s", fontPath))
+		}
+	}
+
 	opt := render.Options{
 		Width:    in.Width,
 		Height:   in.Height,
 		Scale:    in.Scale,
 		Theme:    colors,
-		FontPath: in.FontPath,
+		FontPath: fontPath,
 		Calendar: model.Calendar,
 		Today:    model.Today,
 	}
@@ -89,6 +108,9 @@ func (rendererImpl) Render(ctx context.Context, in Input) (RenderResult, error) 
 	}
 
 	res := RenderResult{Bytes: imgBytes}
+	if len(warnings) > 0 {
+		res.Warnings = append(res.Warnings, warnings...)
+	}
 	if in.OutputPath != "" {
 		if writeErr := os.WriteFile(in.OutputPath, imgBytes, defaultFilePerm); writeErr != nil {
 			return RenderResult{}, fmt.Errorf("write output: %w", writeErr)

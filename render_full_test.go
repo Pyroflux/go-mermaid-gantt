@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/Pyroflux/go-mermaid-gantt/internal/parser"
+	"github.com/pyroflux/go-mermaid-gantt/internal/parser"
 )
 
 func TestRenderFullFeatures(t *testing.T) {

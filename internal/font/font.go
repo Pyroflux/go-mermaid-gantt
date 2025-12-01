@@ -17,6 +17,7 @@ const (
 	opaqueAlpha    = 0xff
 	hexShortLength = 6
 	hexLongLength  = 8
+	probeFontSize  = 14
 )
 
 // LoadFace 加载指定路径的字体。
@@ -41,40 +42,22 @@ func DefaultFace() font.Face {
 	return basicfont.Face7x13
 }
 
-// LoadFaceWithFallback 依次尝试加载指定路径与常见中文字体，失败则回退到默认字体。
-// 返回的字符串为实际使用的字体路径（若为内置默认字体则为空）。
+// LoadFaceWithFallback 依次尝试加载指定路径与常见中文字体，失败则返回错误。
+// 返回的字符串为实际使用的字体路径。
 func LoadFaceWithFallback(size float64, preferred ...string) (font.Face, string, error) {
-	candidates := deduplicate(append(preferred, collectCommonCandidates()...))
-	loadErrs := make([]string, 0, len(candidates))
-	for _, p := range candidates {
-		if p == "" {
-			continue
-		}
-		if _, err := os.Stat(p); err != nil {
-			continue
-		}
-		face, err := LoadFace(p, size)
-		if err == nil {
-			return face, p, nil
-		}
-		loadErrs = append(loadErrs, fmt.Sprintf("%s: %v", p, err))
+	selected, err := SelectFontPath(firstNonEmpty(preferred...))
+	if err != nil {
+		return nil, "", err
 	}
-
-	if env := strings.TrimSpace(os.Getenv("GGM_FONT_PATH")); env != "" {
-		if face, err := LoadFace(env, size); err == nil {
-			return face, env, nil
-		}
+	face, loadErr := LoadFace(selected, size)
+	if loadErr != nil {
+		return nil, selected, loadErr
 	}
-
-	if len(loadErrs) > 0 {
-		return DefaultFace(), "", fmt.Errorf("font fallback to default; tried: %s", strings.Join(loadErrs, "; "))
-	}
-	return DefaultFace(), "", fmt.Errorf("font fallback to default; no usable font found")
+	return face, selected, nil
 }
 
 func collectCommonCandidates() []string {
 	return []string{
-		strings.TrimSpace(os.Getenv("GGM_FONT_PATH")),
 		filepath.Join("testdata", "NotoSansSC-Regular.otf"),
 		filepath.Join("testdata", "NotoSansSC-Regular.ttf"),
 		"/usr/share/fonts/truetype/noto/NotoSansSC-Regular.otf",
@@ -99,6 +82,58 @@ func deduplicate(paths []string) []string {
 		result = append(result, p)
 	}
 	return result
+}
+
+// SelectFontPath 根据优先级选择可读字体路径：显式参数 > 环境变量 > 常见路径。
+// 若提供了显式路径或环境变量且不可用，直接返回错误，不再静默回退。
+func SelectFontPath(preferred string) (string, error) {
+	if p := strings.TrimSpace(preferred); p != "" {
+		return validateSingleFont(p)
+	}
+	if env := strings.TrimSpace(os.Getenv("GGM_FONT_PATH")); env != "" {
+		return validateSingleFont(env)
+	}
+
+	candidates := deduplicate(collectCommonCandidates())
+	loadErrs := make([]string, 0, len(candidates))
+	for _, p := range candidates {
+		if p == "" {
+			continue
+		}
+		if _, err := os.Stat(p); err != nil {
+			loadErrs = append(loadErrs, fmt.Sprintf("%s: %v", p, err))
+			continue
+		}
+		if _, err := LoadFace(p, probeFontSize); err != nil {
+			loadErrs = append(loadErrs, fmt.Sprintf("%s: %v", p, err))
+			continue
+		}
+		return p, nil
+	}
+
+	if len(loadErrs) == 0 {
+		return "", fmt.Errorf("no font candidates available; set FontPath or GGM_FONT_PATH")
+	}
+	return "", fmt.Errorf("no usable font; tried: %s", strings.Join(loadErrs, "; "))
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, v := range values {
+		if strings.TrimSpace(v) != "" {
+			return v
+		}
+	}
+	return ""
+}
+
+func validateSingleFont(path string) (string, error) {
+	if _, err := os.Stat(path); err != nil {
+		return "", fmt.Errorf("%s: %w", path, err)
+	}
+	if _, err := LoadFace(path, probeFontSize); err != nil {
+		return "", fmt.Errorf("%s: %w", path, err)
+	}
+	return path, nil
 }
 
 // ParseHexColorWithDefault 转换 hex 颜色字符串。

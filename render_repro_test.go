@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Pyroflux/go-mermaid-gantt/internal/parser"
-	"github.com/Pyroflux/go-mermaid-gantt/internal/render"
+	"github.com/pyroflux/go-mermaid-gantt/internal/parser"
+	"github.com/pyroflux/go-mermaid-gantt/internal/render"
 )
 
 func TestRender_ReproducibleWithTodayOff(t *testing.T) {
