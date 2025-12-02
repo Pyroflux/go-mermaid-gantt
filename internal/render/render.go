@@ -287,9 +287,10 @@ func RenderModel(_ context.Context, m parser.Model, opt Options) ([]byte, error)
 		contentHeight += bottomMargin
 		height = contentHeight
 	}
-
-	w := int(math.Round(float64(width) * scale))
-	h := int(math.Round(float64(height) * scale))
+	
+	// 画布尺寸不应受Scale影响，Scale应仅影响元素大小和位置
+	w := width
+	h := height
 
 	img := image.NewRGBA(image.Rect(0, 0, w, h))
 	draw.Draw(img, img.Bounds(), &image.Uniform{opt.Theme.Background}, image.Point{}, draw.Src)
@@ -379,7 +380,7 @@ func RenderModel(_ context.Context, m parser.Model, opt Options) ([]byte, error)
 	}
 
 	if timeMode {
-		drawTimelineMinutes(img, leftMargin, topMargin, gridWidth, axisHeight, minSpan, maxSpan, m.AxisFormat, opt.Theme, calendar, timelineEnd, tickMinutes, weekendFill, opt.FontPath)
+		drawTimelineMinutes(img, leftMargin, topMargin, gridWidth, axisHeight, minSpan, maxSpan, m.AxisFormat, opt.Theme, calendar, timelineEnd, tickMinutes, weekendFill, opt.FontPath, scale)
 	} else {
 		totalDays := calendarSpanDays(minStart, maxEnd)
 		if totalDays <= 0 {
@@ -394,7 +395,7 @@ func RenderModel(_ context.Context, m parser.Model, opt Options) ([]byte, error)
 		} else {
 			weekStart = nil
 		}
-		drawTimeline(img, leftMargin, topMargin, totalDays, axisHeight, dayWidth, minStart, m.AxisFormat, opt.Theme, calendar, timelineEnd, hasToday, todayX, tickDays, weekStart, weekendFill, opt.FontPath)
+		drawTimeline(img, leftMargin, topMargin, totalDays, axisHeight, dayWidth, minStart, m.AxisFormat, opt.Theme, calendar, timelineEnd, hasToday, todayX, tickDays, weekStart, weekendFill, opt.FontPath, scale)
 	}
 
 	// 垂直标记（不占用行）
@@ -796,7 +797,7 @@ func abs(v int) int {
 	return v
 }
 
-func drawTimelineMinutes(img *image.RGBA, xStart, yStart, width, axisHeight int, minStart, maxEnd time.Time, axisFormat string, theme ThemeColors, calendar parser.Calendar, endY int, forcedTickMinutes int, weekendFill color.Color, fontPath string) {
+func drawTimelineMinutes(img *image.RGBA, xStart, yStart, width, axisHeight int, minStart, maxEnd time.Time, axisFormat string, theme ThemeColors, calendar parser.Calendar, endY int, forcedTickMinutes int, weekendFill color.Color, fontPath string, scale float64) {
 	totalMinutes := int(maxEnd.Sub(minStart).Minutes()) + 1
 	if totalMinutes <= 0 {
 		totalMinutes = 1
@@ -841,7 +842,13 @@ func drawTimelineMinutes(img *image.RGBA, xStart, yStart, width, axisHeight int,
 	if strings.TrimSpace(format) == "" {
 		format = "15:04"
 	}
-	face, _, _ := font.LoadFaceWithFallback(float64(axisFontSize), fontPath)
+	// 根据Scale调整字体大小，但保持合理的上限以避免字体过大
+	adjustedFontSize := int(float64(axisFontSize) * scale)
+	// 限制最大字体大小以保持可读性，但允许更大的放大倍数
+	if adjustedFontSize > int(float64(axisFontSize)*2.5) {
+		adjustedFontSize = int(float64(axisFontSize) * 2.5)
+	}
+	face, _, _ := font.LoadFaceWithFallback(float64(adjustedFontSize), fontPath)
 	step := labelStep
 	for i := labelOffset; i <= totalMinutes; i += step {
 		x := xStart + int(float64(i)*pixelsPerMinute)
@@ -884,7 +891,7 @@ func drawVerticalMarkers(img *image.RGBA, xStart, yStart, endY int, spanStart, s
 	}
 }
 
-func drawTimeline(img *image.RGBA, xStart, yStart, days, axisHeight, dayWidth int, minStart time.Time, axisFormat string, theme ThemeColors, calendar parser.Calendar, endY int, hasToday bool, todayX int, forcedTickDays int, weekStart *time.Weekday, weekendFill color.Color, fontPath string) {
+func drawTimeline(img *image.RGBA, xStart, yStart, days, axisHeight, dayWidth int, minStart time.Time, axisFormat string, theme ThemeColors, calendar parser.Calendar, endY int, hasToday bool, todayX int, forcedTickDays int, weekStart *time.Weekday, weekendFill color.Color, fontPath string, scale float64) {
 	width := dayWidth * days
 	lineY := yStart + axisHeight/halfDivisor
 
@@ -933,7 +940,13 @@ func drawTimeline(img *image.RGBA, xStart, yStart, days, axisHeight, dayWidth in
 	}
 
 	// 刻度文本
-	face, _, _ := font.LoadFaceWithFallback(float64(axisFontSize), fontPath)
+	// 根据Scale调整字体大小，但保持合理的上限以避免字体过大
+	adjustedFontSize := int(float64(axisFontSize) * scale)
+	// 限制最大字体大小以保持可读性，但允许更大的放大倍数
+	if adjustedFontSize > int(float64(axisFontSize)*2.5) {
+		adjustedFontSize = int(float64(axisFontSize) * 2.5)
+	}
+	face, _, _ := font.LoadFaceWithFallback(float64(adjustedFontSize), fontPath)
 	format := axisFormat
 	if strings.TrimSpace(format) == "" {
 		format = "01-02"

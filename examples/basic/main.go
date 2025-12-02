@@ -14,6 +14,7 @@ import (
 func main() {
 	fontPath := flag.String("font", "", "path to a font file (supports Chinese)")
 	outPath := flag.String("output", filepath.Join(os.TempDir(), "gantt_basic.png"), "output png path")
+	scale := flag.Float64("scale", 1.0, "scale factor for the diagram")
 	flag.Parse()
 
 	input := ganttmermaid.Input{
@@ -35,6 +36,7 @@ func main() {
 		Timezone:           "UTC",
 		DisableTodayMarker: true, // 可选：禁用今日标记便于回归可复现
 		FontPath:           strings.TrimSpace(*fontPath),
+		Scale:              *scale,
 	}
 
 	res, err := ganttmermaid.Render(context.Background(), input)
