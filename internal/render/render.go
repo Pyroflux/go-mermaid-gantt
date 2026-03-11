@@ -219,16 +219,17 @@ func RenderModel(_ context.Context, m parser.Model, opt Options) ([]byte, error)
 		}
 	}
 
+	scaledMinGridWidth := int(float64(minGridWidthPx) * scale)
 	if timeMode {
 		// total span handled via gridWidth; totalMinutes used later per-task
 		if width > 0 {
 			gridWidth = width - leftMargin - rightMargin
-			if gridWidth < minGridWidthPx {
-				gridWidth = minGridWidthPx
+			if gridWidth < scaledMinGridWidth {
+				gridWidth = scaledMinGridWidth
 			}
 			width = leftMargin + gridWidth + rightMargin
 		} else {
-			gridWidth = minGridWidthPx
+			gridWidth = scaledMinGridWidth
 			width = leftMargin + gridWidth + rightMargin
 		}
 		dayWidth = gridWidth // used as total span for minutes mode
@@ -265,8 +266,8 @@ func RenderModel(_ context.Context, m parser.Model, opt Options) ([]byte, error)
 		} else {
 			dayWidth = minDayWidth
 			gridWidth = dayWidth * totalDays
-			if gridWidth < minGridWidthPx {
-				dayWidth = clampInt(int(math.Ceil(float64(minGridWidthPx)/float64(totalDays))), minDayWidth, maxDayWidth)
+			if gridWidth < scaledMinGridWidth {
+				dayWidth = clampInt(int(math.Ceil(float64(scaledMinGridWidth)/float64(totalDays))), minDayWidth, maxDayWidth)
 				gridWidth = dayWidth * totalDays
 			}
 			width = leftMargin + gridWidth + rightMargin
@@ -353,22 +354,15 @@ func RenderModel(_ context.Context, m parser.Model, opt Options) ([]byte, error)
 	if timeMode {
 		todayX = leftMargin
 	} else {
-		spanStart := minStart.In(loc)
-		spanEnd := maxEnd.In(loc)
-		if spanEnd.Before(spanStart) {
-			todayX = leftMargin
-		} else {
-			nowDayStart := todayTime
-			if nowDayStart.Before(spanStart) {
-				nowDayStart = spanStart
-			}
-			if nowDayStart.After(spanEnd) {
-				nowDayStart = spanEnd
-			}
-			spanTotal := spanEnd.Sub(spanStart)
-			ratio := nowDayStart.Sub(spanStart).Seconds() / spanTotal.Seconds()
-			todayX = leftMargin + int(float64(gridWidth)*ratio)
+		offset := calendarOffset(minStart, todayTime)
+		if offset < 0 {
+			offset = 0
 		}
+		totalDaysForToday := calendarSpanDays(minStart, maxEnd)
+		if offset > totalDaysForToday {
+			offset = totalDaysForToday
+		}
+		todayX = leftMargin + offset*dayWidth
 	}
 	hasToday := today.Enabled && !timeMode
 
@@ -408,8 +402,10 @@ func RenderModel(_ context.Context, m parser.Model, opt Options) ([]byte, error)
 	// 绘制 section 标题与任务
 	y = startY
 	for _, sec := range m.Sections {
-		drawBoldText(img, opt.Theme.Emphasis, leftMargin/halfDivisor, y+rowHeight/halfDivisor, sec.Name, opt.FontPath, int(float64(sectionFontSize)*scale))
-		y += rowHeight / halfDivisor
+		if hasSectionHeader {
+			drawBoldText(img, opt.Theme.Emphasis, leftMargin/halfDivisor, y+rowHeight/halfDivisor, sec.Name, opt.FontPath, int(float64(sectionFontSize)*scale))
+			y += rowHeight / halfDivisor
+		}
 		for _, task := range sec.Tasks {
 			x := leftMargin
 			var widthPx int
@@ -494,7 +490,9 @@ func RenderModel(_ context.Context, m parser.Model, opt Options) ([]byte, error)
 			drawText(img, labelColor, labelX, labelY, label, opt.FontPath, int(float64(taskFontSize)*scale))
 			y += rowHeight
 		}
-		y += secGap // section 间隔
+		if hasSectionHeader {
+			y += secGap // section 间隔
+		}
 	}
 
 	buf := bytes.NewBuffer(nil)
@@ -678,11 +676,23 @@ func calendarSpanDays(start, end time.Time) int {
 	if start.After(end) {
 		start, end = end, start
 	}
-	return int(end.Sub(start).Hours()/floatHoursPerDay) + 1
+	// 使用日历日期差，避免 DST 导致偏移
+	sy, sm, sd := start.Date()
+	ey, em, ed := end.Date()
+	loc := start.Location()
+	startDay := time.Date(sy, sm, sd, 0, 0, 0, 0, loc)
+	endDay := time.Date(ey, em, ed, 0, 0, 0, 0, loc)
+	return int(endDay.Sub(startDay).Hours()/floatHoursPerDay) + 1
 }
 
 func calendarOffset(start, target time.Time) int {
-	return int(target.Sub(start).Hours() / floatHoursPerDay)
+	// 使用日历日期差而非小时差，避免 DST 跨越时 23/25 小时日导致偏移
+	sy, sm, sd := start.Date()
+	ty, tm, td := target.Date()
+	loc := start.Location()
+	startDay := time.Date(sy, sm, sd, 0, 0, 0, 0, loc)
+	targetDay := time.Date(ty, tm, td, 0, 0, 0, 0, loc)
+	return int(targetDay.Sub(startDay).Hours() / floatHoursPerDay)
 }
 
 func clampInt(v, min, max int) int {
@@ -798,7 +808,7 @@ func abs(v int) int {
 }
 
 func drawTimelineMinutes(img *image.RGBA, xStart, yStart, width, axisHeight int, minStart, maxEnd time.Time, axisFormat string, theme ThemeColors, calendar parser.Calendar, endY int, forcedTickMinutes int, weekendFill color.Color, fontPath string, scale float64) {
-	totalMinutes := int(maxEnd.Sub(minStart).Minutes()) + 1
+	totalMinutes := int(maxEnd.Sub(minStart).Minutes())
 	if totalMinutes <= 0 {
 		totalMinutes = 1
 	}
@@ -819,12 +829,22 @@ func drawTimelineMinutes(img *image.RGBA, xStart, yStart, width, axisHeight int,
 		img.Set(xStart, yy, theme.Grid)
 	}
 
+	// 周末着色：按天遍历，使用整天的像素宽度
+	dayMinutes := hoursPerDay * 60
+	dayPixels := int(float64(dayMinutes) * pixelsPerMinute)
+	if dayPixels < 1 {
+		dayPixels = 1
+	}
+	for d := 0; d*dayMinutes <= totalMinutes; d++ {
+		dayStart := minStart.AddDate(0, 0, d)
+		if isExcludedDay(dayStart, calendar) {
+			dx := xStart + int(float64(d*dayMinutes)*pixelsPerMinute)
+			fillRect(img, image.Rect(dx, yStart, dx+dayPixels, endY), weekendFill)
+		}
+	}
+	// 垂直网格线
 	for i := tickOffset; i <= totalMinutes; i += tickMinutes {
 		x := xStart + int(float64(i)*pixelsPerMinute)
-		current := minStart.Add(time.Duration(i) * time.Minute)
-		if isExcludedDay(current, calendar) {
-			fillRect(img, image.Rect(x, yStart, x+int(float64(tickMinutes)*pixelsPerMinute), endY), weekendFill)
-		}
 		for yy := yStart; yy < endY; yy++ {
 			img.Set(x, yy, theme.Grid)
 		}
@@ -849,12 +869,13 @@ func drawTimelineMinutes(img *image.RGBA, xStart, yStart, width, axisHeight int,
 		adjustedFontSize = int(float64(axisFontSize) * 2.5)
 	}
 	face, _, _ := font.LoadFaceWithFallback(float64(adjustedFontSize), fontPath)
+	scaledTickOffset := int(float64(tickLabelOffsetPx) * scale)
 	step := labelStep
 	for i := labelOffset; i <= totalMinutes; i += step {
 		x := xStart + int(float64(i)*pixelsPerMinute)
 		date := minStart.Add(time.Duration(i) * time.Minute).Format(format)
-		labelY := yStart + axisHeight/halfDivisor - tickLabelOffsetPx
-		drawTextWithFace(img, theme.Text, x+tickLabelOffsetPx, labelY, face, date)
+		labelY := yStart + axisHeight/halfDivisor - scaledTickOffset
+		drawTextWithFace(img, theme.Text, x+scaledTickOffset, labelY, face, date)
 	}
 }
 
@@ -916,14 +937,30 @@ func drawTimeline(img *image.RGBA, xStart, yStart, days, axisHeight, dayWidth in
 		tickEvery = autoStep
 	}
 
-	// 周末着色 + 垂直网格（贯穿内容区域），仅在刻度日画主网格
+	// 周末着色（每天逐一检查），刻度网格线按 tickEvery 步进
 	for i := 0; i < days; i++ {
 		x := xStart + i*dayWidth
-		dayDate := minStart.Add(time.Duration(i) * time.Duration(hoursPerDay) * time.Hour)
+		dayDate := minStart.AddDate(0, 0, i)
 		if isExcludedDay(dayDate, calendar) {
 			fillRect(img, image.Rect(x, lineY, x+dayWidth, endY), weekendFill)
 		}
-		if i%tickEvery == 0 {
+	}
+	// 起点线
+	for yy := yStart; yy < endY; yy++ {
+		img.Set(xStart, yy, theme.Grid)
+	}
+	// 垂直网格线：与刻度标签使用同一起点和步长
+	gridStartDay := minStart
+	if weekStart != nil {
+		gridStartDay = alignToWeekStart(minStart, weekStart)
+	}
+	for cur := gridStartDay; ; cur = cur.AddDate(0, 0, tickEvery) {
+		offsetDays := calendarOffset(minStart, cur)
+		if offsetDays > days {
+			break
+		}
+		if offsetDays > 0 { // > 0 避免重复画起点线
+			x := xStart + offsetDays*dayWidth
 			for yy := yStart; yy < endY; yy++ {
 				img.Set(x, yy, theme.Grid)
 			}
@@ -955,19 +992,16 @@ func drawTimeline(img *image.RGBA, xStart, yStart, days, axisHeight, dayWidth in
 	if weekStart != nil {
 		startDay = alignToWeekStart(minStart, weekStart)
 	}
-	for cur := startDay; ; cur = cur.Add(time.Duration(tickEvery) * 24 * time.Hour) {
-		offsetDays := calendarSpanDays(minStart, cur) - 1
+	for cur := startDay; ; cur = cur.AddDate(0, 0, tickEvery) {
+		offsetDays := calendarOffset(minStart, cur)
 		if offsetDays > days {
 			break
 		}
 		if offsetDays >= 0 {
 			x := xStart + offsetDays*dayWidth
 			date := cur.Format(format)
-			labelY := yStart + axisHeight/halfDivisor - tickLabelOffsetPx
-			drawTextWithFace(img, theme.Text, x+tickLabelOffsetPx, labelY, face, date)
-		}
-		if offsetDays >= days {
-			break
+			labelY := yStart + axisHeight/halfDivisor - int(float64(tickLabelOffsetPx)*scale)
+			drawTextWithFace(img, theme.Text, x+int(float64(tickLabelOffsetPx)*scale), labelY, face, date)
 		}
 	}
 
