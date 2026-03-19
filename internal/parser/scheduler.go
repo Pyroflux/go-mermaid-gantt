@@ -196,6 +196,21 @@ func ResolveSchedule(m Model) (Model, error) {
 			start = maxAfter
 		}
 
+		// 显式起止日期：直接使用，不通过 applyCalendar 跳过周末
+		if t.HasStart && t.HasEnd {
+			t.Start = start
+			startDay := time.Date(start.Year(), start.Month(), start.Day(), 0, 0, 0, 0, start.Location())
+			endDay := time.Date(t.End.Year(), t.End.Month(), t.End.Day(), 0, 0, 0, 0, t.End.Location())
+			days := int(endDay.Sub(startDay).Hours()/hoursPerDay) + 1
+			if days <= 0 {
+				days = 1
+			}
+			t.DurationDays = days
+			visited[t.ID] = true
+			resolving[t.ID] = false
+			return nil
+		}
+
 		origDur := t.Duration
 		end, days := applyCalendar(start, t.Duration, m.Calendar)
 		// 对周/月等单位使用天数期望，避免包容端偏差
